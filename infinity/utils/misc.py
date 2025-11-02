@@ -16,7 +16,7 @@ import torch
 import torch.distributed as tdist
 import torch.nn.functional as F
 
-import infinity.utils.dist as dist
+from . import dist
 
 os_system = functools.partial(subprocess.call, shell=True)
 def echo(info):

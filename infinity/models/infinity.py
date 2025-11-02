@@ -17,17 +17,17 @@ from torch.utils.checkpoint import checkpoint
 from PIL import Image
 import numpy as np
 
-import infinity.utils.dist as dist
-from infinity.utils.dist import for_visualize
-from infinity.models.basic import flash_attn_func, flash_fused_op_installed, AdaLNBeforeHead, CrossAttnBlock, SelfAttnBlock, CrossAttention, FastRMSNorm, precompute_rope2d_freqs_grid
-from infinity.utils import misc
-from infinity.models.flex_attn import FlexAttn
-from infinity.utils.dynamic_resolution import dynamic_resolution_h_w, h_div_w_templates
+from ..utils import dist
+from ..utils.dist import for_visualize
+from .basic import flash_attn_func, flash_fused_op_installed, AdaLNBeforeHead, CrossAttnBlock, SelfAttnBlock, CrossAttention, FastRMSNorm, precompute_rope2d_freqs_grid
+from ..utils import misc
+from .flex_attn import FlexAttn
+from ..utils.dynamic_resolution import dynamic_resolution_h_w, h_div_w_templates
 
-try:
-    from infinity.models.fused_op import fused_ada_layer_norm, fused_ada_rms_norm
-except:
-    fused_ada_layer_norm, fused_ada_rms_norm = None, None
+#try:
+from .fused_op import fused_ada_layer_norm, fused_ada_rms_norm
+#except:
+#    fused_ada_layer_norm, fused_ada_rms_norm = None, None
 
 
 class MultiInpIdentity(nn.Module):

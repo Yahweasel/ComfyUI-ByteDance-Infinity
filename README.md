@@ -1,3 +1,23 @@
+# ComfyUI-ByteDance-Infinity
+
+This is a shallow fork of [ByteDance's Infinity model](https://github.com/FoundationVision/Infinity/) made to work with ComfyUI.
+
+Directory layout: In the `models` directory, create an `infinity` directory. In that directory, create three subdirectories:
+ * vae: Place your VAE models, e.g. `infinity_vae_d32reg.pth`, here.
+ * model: Place your Infinity models, e.g. `infinity_2b_reg.pth`, here. For the 8B (and future, larger) models, download their entire directory here, e.g. `infinity_8b_weights`.
+ * clip: Check out `flan-t5-xl`, from https://huggingface.co/google/flan-t5-xl , here, e.g. as `models/infinity/clip/flan-t5-xl`.
+
+The language model is always `flan-t5-xl`. The VAE and model have to correspond, e.g., the 2B model needs the d32reg VAE, and the 8B model needs the d56 VAE.
+
+This repository exposes four nodes, each named with `Infinity:`. All are needed. Three load the above three models, and the last generates images.
+
+Model and VAE types are not autodetected. When you've set the correct model/VAE name, make sure you also set the appropriate model/VAE type, and whether to patchify.
+
+So far I've only had success with the 2B model; even on my 24GB GPU, I run out of space with the 8B model. I'm working on it.
+
+The original README is below.
+
+
 # Infinity $\infty$: Scaling Bitwise AutoRegressive Modeling for High-Resolution Image Synthesis
 
 <div align="center">

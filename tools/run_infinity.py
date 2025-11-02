@@ -20,11 +20,11 @@ from PIL import Image, ImageEnhance
 import torch.nn.functional as F
 from torch.cuda.amp import autocast
 
-from infinity.models.infinity import Infinity
-from infinity.models.basic import *
+from ..infinity.models.infinity import Infinity
+from ..infinity.models.basic import *
 import PIL.Image as PImage
 from torchvision.transforms.functional import to_tensor
-from infinity.utils.dynamic_resolution import dynamic_resolution_h_w, h_div_w_templates
+from ..infinity.utils.dynamic_resolution import dynamic_resolution_h_w, h_div_w_templates
 
 
 def extract_key_val(text):
@@ -146,12 +146,12 @@ def save_slim_model(infinity_model_path, save_file=None, device='cpu', key='gpt_
     print('[Save slim model] done')
     return save_file
 
-def load_tokenizer(t5_path =''):
+def load_tokenizer(device, t5_path =''):
     print(f'[Loading tokenizer and text encoder]')
     text_tokenizer: T5TokenizerFast = AutoTokenizer.from_pretrained(t5_path, revision=None, legacy=True)
     text_tokenizer.model_max_length = 512
     text_encoder: T5EncoderModel = T5EncoderModel.from_pretrained(t5_path, torch_dtype=torch.float16)
-    text_encoder.to('cuda')
+    text_encoder.to(device)
     text_encoder.eval()
     text_encoder.requires_grad_(False)
     return text_tokenizer, text_encoder
@@ -194,18 +194,21 @@ def load_infinity(
             inference_mode=True,
             train_h_div_w_list=[1.0],
             **model_kwargs,
-        ).to(device=device)
+        )
         print(f'[you selected Infinity with {model_kwargs=}] model size: {sum(p.numel() for p in infinity_test.parameters())/1e9:.2f}B, bf16={bf16}')
 
         if bf16:
             for block in infinity_test.unregistered_blocks:
                 block.bfloat16()
 
+        infinity_test = infinity_test.to(device=device)
         infinity_test.eval()
         infinity_test.requires_grad_(False)
 
-        infinity_test.cuda()
-        torch.cuda.empty_cache()
+        if device != "cpu":
+            infinity_test.cuda()
+            torch.cuda.empty_cache()
+        infinity_test.device = device
 
         print(f'[Load Infinity weights]')
         if checkpoint_type == 'torch':
@@ -254,11 +257,10 @@ def joint_vi_vae_encode_decode(vae, image_path, scale_schedule, device, tgt_h, t
     print(recons_img.shape, gt_img.shape)
     return gt_img, recons_img, all_bit_indices
 
-def load_visual_tokenizer(args):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def load_visual_tokenizer(device, args):
     # load vae
     if args.vae_type in [14,16,18,20,24,32,64]:
-        from infinity.models.bsq_vae.vae import vae_model
+        from ..infinity.models.bsq_vae.vae import vae_model
         schedule_mode = "dynamic"
         codebook_dim = args.vae_type
         codebook_size = 2**codebook_dim
@@ -276,8 +278,7 @@ def load_visual_tokenizer(args):
         raise ValueError(f'vae_type={args.vae_type} not supported')
     return vae
 
-def load_transformer(vae, args):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def load_transformer(device, vae, args):
     model_path = args.model_path
     if args.checkpoint_type == 'torch': 
         # copy large model to local; save slim to local; and copy slim to nas; load local slim model
@@ -384,17 +385,19 @@ if __name__ == '__main__':
     parser.add_argument('--save_file', type=str, default='./tmp.jpg')
     args = parser.parse_args()
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     # parse cfg
     args.cfg = list(map(float, args.cfg.split(',')))
     if len(args.cfg) == 1:
         args.cfg = args.cfg[0]
     
     # load text encoder
-    text_tokenizer, text_encoder = load_tokenizer(t5_path =args.text_encoder_ckpt)
+    text_tokenizer, text_encoder = load_tokenizer(device, t5_path =args.text_encoder_ckpt)
     # load vae
-    vae = load_visual_tokenizer(args)
+    vae = load_visual_tokenizer(device, args)
     # load infinity
-    infinity = load_transformer(vae, args)
+    infinity = load_transformer(device, vae, args)
     
     scale_schedule = dynamic_resolution_h_w[args.h_div_w_template][args.pn]['scales']
     scale_schedule = [ (1, h, w) for (_, h, w) in scale_schedule]
