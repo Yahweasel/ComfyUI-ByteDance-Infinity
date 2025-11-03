@@ -32,7 +32,11 @@ except ImportError:
     flash_fused_op_installed = False
     
     def rms_norm_impl(x, weight, epsilon):
-        return (x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True).add_(epsilon))) * weight
+        l = (x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True).add_(epsilon)))
+        if weight.dtype == torch.float8_e5m2:
+            return (l * weight.to(dtype=torch.bfloat16)).to(dtype=torch.float8_e5m2)
+        else:
+            return l * weight
 
 
 def precompute_rope2d_freqs_grid(dim, dynamic_resolution_h_w, rope2d_normalized_by_hw, pad_to_multiplier=1, max_height=2048 // 16, max_width=2048 // 16, base=10000.0, device=None, scaling_factor=1.0):
@@ -279,7 +283,10 @@ class SelfAttention(nn.Module):
         else: q, k, v = qkv.permute(2, 0, 3, 1, 4).unbind(dim=0); L_dim = 2   # q or k or v: all are shaped in (B:batch_size, H:heads, L:seq_len, c:head_dim)
         
         if self.cos_attn:   # always True
-            scale_mul = self.scale_mul_1H11.clamp_max(self.max_scale_mul).exp() # 11H1 (flash), or 1H11 (not flash)
+            scale_mul_1H11 = self.scale_mul_1H11
+            if scale_mul_1H11.dtype == torch.float8_e5m2:
+                scale_mul_1H11 = scale_mul_1H11.to(dtype=torch.bfloat16)
+            scale_mul = scale_mul_1H11.clamp_max(self.max_scale_mul).exp().to(dtype=scale_mul_1H11.dtype) # 11H1 (flash), or 1H11 (not flash)
             q = F.normalize(q, dim=-1, eps=1e-12).mul(scale_mul).contiguous()   # fp32
             k = F.normalize(k, dim=-1, eps=1e-12).contiguous()                  # fp32
             v = v.contiguous()                                                  # bf16
@@ -494,7 +501,7 @@ class CrossAttnBlock(nn.Module):
     def forward(self, x, cond_BD, ca_kv, attn_bias_or_two_vector, attn_fn=None, scale_schedule=None, rope2d_freqs_grid=None, scale_ind=0):    # todo: minGPT and vqgan also uses pre-norm, just like this, while MaskGiT uses post-norm
         with torch.cuda.amp.autocast(enabled=False):    # disable half precision
             if self.shared_aln: # always True;                   (1, 1, 6, C)  + (B, 1, 6, C)
-                gamma1, gamma2, scale1, scale2, shift1, shift2 = (self.ada_gss + cond_BD).unbind(2) # 116C + B16C =unbind(2)=> 6 B1C
+                gamma1, gamma2, scale1, scale2, shift1, shift2 = (self.ada_gss.to(cond_BD.dtype) + cond_BD).unbind(2) # 116C + B16C =unbind(2)=> 6 B1C
             else:
                 gamma1, gamma2, scale1, scale2, shift1, shift2 = self.ada_lin(cond_BD).view(-1, 1, 6, self.C).unbind(2)
         
@@ -513,9 +520,12 @@ class CrossAttnBlock(nn.Module):
                 x_sa = checkpoint(self.sa, x_sa, attn_bias_or_two_vector, attn_fn, scale_schedule, rope2d_freqs_grid, use_reentrant=False)
             else:
                 x_sa = self.sa(x_sa, attn_bias_or_two_vector, attn_fn, scale_schedule, rope2d_freqs_grid, scale_ind=scale_ind)
-            x = x + self.drop_path(x_sa.mul_(gamma1))
+            xdtype = x.dtype
+            r = self.drop_path(x_sa.mul_(gamma1))
+            x = x.to(dtype=r.dtype) + r
             x = x + self.ca(self.ca_norm(x), ca_kv).float().mul_(self.ca_gamma)
             x = x + self.drop_path(self.ffn(self.fused_norm_func(C=self.C, eps=self.norm_eps, x=x, scale=scale2, shift=shift2)).mul(gamma2)) # this mul(gamma2) cannot be in-placed cuz we possibly use FusedMLP
+            x = x.to(dtype=xdtype)
         return x
     
     def extra_repr(self) -> str:

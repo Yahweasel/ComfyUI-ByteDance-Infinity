@@ -75,9 +75,9 @@ class InfinityModel:
                 "vae": ("INFINITY_VAE",),
                 "model": ("STRING", {"default": "infinity_2b_reg.pth"}),
                 "checkpoint_type": (["torch", "torch_shard"],),
+                "model_type": ("STRING", {"default": "infinity_2b"}),
 
                 "pn": (['0.06M', '0.25M', '1M'], {"default": '1M'}),
-                "model_type": ("STRING", {"default": "infinity_2b"}),
                 "rope2d_each_sa_layer": ([False, True], {"default": True}),
                 "rope2d_normalized_by_hw": ([0, 1, 2], {"default": 2}),
                 "use_scale_schedule_embedding": ([False, True],),
@@ -85,7 +85,7 @@ class InfinityModel:
                 "add_lvl_embeding_only_first_block": ([False, True],),
                 "text_channels": ("INT", {"default": 2048}),
                 "use_flex_attn": ([False, True],),
-                "bf16": ([False, True], {"default": True}),
+                "weight_type": (["f32", "bf16", "f8"], {"default": "bf16"}),
             }
         }
 
@@ -106,7 +106,7 @@ class InfinityModel:
         add_lvl_embeding_only_first_block,
         text_channels,
         use_flex_attn,
-        bf16
+        weight_type
     ):
         vae, vae_args = vae
 
@@ -123,7 +123,7 @@ class InfinityModel:
         args.add_lvl_embeding_only_first_block = int(add_lvl_embeding_only_first_block)
         args.text_channels = text_channels
         args.use_flex_attn = int(use_flex_attn)
-        args.bf16 = bf16
+        args.weight_type = weight_type
 
         args.apply_spatial_patchify = vae_args.apply_spatial_patchify
         args.checkpoint_type = checkpoint_type

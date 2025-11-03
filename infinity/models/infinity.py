@@ -347,8 +347,11 @@ class Infinity(nn.Module):
         patch_t, patch_h, patch_w = scale_schedule[scale_ind]
         t_mul_h_mul_w = patch_t * patch_h * patch_w
         assert t_mul_h_mul_w + need_to_pad == seq_len
-        feature[:, :t_mul_h_mul_w] += self.lvl_embed(scale_ind*torch.ones((bs, t_mul_h_mul_w),dtype=torch.int).to(feature.device))
-        return feature
+        if feature.dtype == torch.float8_e5m2:
+            feature = feature.to(dtype=torch.bfloat16)
+        r = self.lvl_embed(scale_ind*torch.ones((bs, t_mul_h_mul_w),dtype=torch.int).to(feature.device))
+        feature[:, :t_mul_h_mul_w] += r.to(dtype=feature.dtype)
+        return feature.to(dtype=r.dtype)
     
     def add_lvl_embeding_for_x_BLC(self, x_BLC, scale_schedule, need_to_pad=0):
         ptr = 0
@@ -505,7 +508,11 @@ class Infinity(nn.Module):
         sos = cond_BD = self.text_proj_for_sos((kv_compact, cu_seqlens_k, max_seqlen_k)) # sos shape: [2, 4096]
         kv_compact = self.text_proj_for_ca(kv_compact) # kv_compact shape: [304, 4096]
         ca_kv = kv_compact, cu_seqlens_k, max_seqlen_k
-        last_stage = sos.unsqueeze(1).expand(bs, 1, -1) + self.pos_start.expand(bs, 1, -1)
+        l = sos.unsqueeze(1).expand(bs, 1, -1)
+        r = self.pos_start.expand(bs, 1, -1)
+        last_stage = (l + r.to(dtype=l.dtype)).to(dtype=r.dtype)
+        l = None
+        r = None
 
         with torch.amp.autocast('cuda', enabled=False):
             cond_BD_or_gss = self.shared_ada_lin(cond_BD.float()).float().contiguous()

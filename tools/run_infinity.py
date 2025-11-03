@@ -177,7 +177,7 @@ def load_infinity(
     text_channels=2048,
     apply_spatial_patchify=0,
     use_flex_attn=False,
-    bf16=False,
+    weight_type="bf16",
     checkpoint_type='torch',
 ):
     print(f'[Loading Infinity]')
@@ -201,12 +201,16 @@ def load_infinity(
             train_h_div_w_list=[1.0],
             **model_kwargs,
         )
-        print(f'[you selected Infinity with {model_kwargs=}] model size: {sum(p.numel() for p in infinity_test.parameters())/1e9:.2f}B, bf16={bf16}')
+        print(f'[you selected Infinity with {model_kwargs=}] model size: {sum(p.numel() for p in infinity_test.parameters())/1e9:.2f}B, weight_type={weight_type}')
 
-        if bf16:
+        if weight_type == "bf16":
             for block in infinity_test.unregistered_blocks:
                 block.bfloat16()
             infinity_test = infinity_test.to(dtype=torch.bfloat16)
+        elif weight_type == "f8":
+            for idx in range(len(infinity_test.unregistered_blocks)):
+                infinity_test.unregistered_blocks[idx] = infinity_test.unregistered_blocks[idx].to(dtype=torch.float8_e5m2)
+            infinity_test = infinity_test.to(dtype=torch.float8_e5m2)
 
         infinity_test = infinity_test.to(device=device)
         infinity_test.eval()
@@ -352,7 +356,7 @@ def load_transformer(device, vae, args):
         text_channels=args.text_channels,
         apply_spatial_patchify=args.apply_spatial_patchify,
         use_flex_attn=args.use_flex_attn,
-        bf16=args.bf16,
+        weight_type=args.weight_type,
         checkpoint_type=args.checkpoint_type,
     )
     return infinity
@@ -382,7 +386,7 @@ def add_common_arguments(parser):
     parser.add_argument('--enable_model_cache', type=int, default=0, choices=[0,1])
     parser.add_argument('--checkpoint_type', type=str, default='torch')
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--bf16', type=int, default=1, choices=[0,1])
+    parser.add_argument('--weight_type', type=str, default="bf16", choices=["f32","bf16","f8"])
     
 
 
