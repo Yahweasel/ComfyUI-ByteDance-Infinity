@@ -51,8 +51,9 @@ class TextAttentivePool(nn.Module):
 
 class SharedAdaLin(nn.Linear):
     def forward(self, cond_BD):
-        C = self.weight.shape[0] // 6
-        return super().forward(cond_BD).reshape(-1, 1, 6, C)   # B16C
+        with torch.amp.autocast('cuda', enabled=True):
+            C = self.weight.shape[0] // 6
+            return super().forward(cond_BD).reshape(-1, 1, 6, C)   # B16C
 
 
 class MultipleLayers(nn.Module):
@@ -338,7 +339,7 @@ class Infinity(nn.Module):
         :param tau: temperature
         :return: logits, shaped (B or batch_size, V or vocabulary_size)
         """
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch.amp.autocast('cuda', enabled=True):
             return self.head(self.head_nm(h.float(), cond_BD.float()))
 
     def add_lvl_embeding(self, feature, scale_ind, scale_schedule, need_to_pad=0):
@@ -633,7 +634,8 @@ class Infinity(nn.Module):
             return ret, idx_Bl_list, []
         
         if vae_type != 0:
-            img = vae.decode(summed_codes.squeeze(-3))
+            with torch.amp.autocast(vae.device, enabled=True):
+                img = vae.decode(summed_codes.squeeze(-3).to(device=vae.device))
         else:
             img = vae.viz_from_ms_h_BChw(ret, scale_schedule=scale_schedule, same_shape=True, last_one=True)
 

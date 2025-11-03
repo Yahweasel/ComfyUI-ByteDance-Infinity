@@ -43,8 +43,8 @@ def encode_prompt(text_tokenizer, text_encoder, prompt, enable_positive_prompt=F
     print(f'prompt={prompt}')
     captions = [prompt]
     tokens = text_tokenizer(text=captions, max_length=512, padding='max_length', truncation=True, return_tensors='pt')  # todo: put this into dataset
-    input_ids = tokens.input_ids.cuda(non_blocking=True)
-    mask = tokens.attention_mask.cuda(non_blocking=True)
+    input_ids = tokens.input_ids.to(device=text_encoder.device)
+    mask = tokens.attention_mask.to(device=text_encoder.device)
     text_features = text_encoder(input_ids=input_ids, attention_mask=mask)['last_hidden_state'].float()
     lens: List[int] = mask.sum(dim=-1).tolist()
     cu_seqlens_k = F.pad(mask.sum(dim=-1).to(dtype=torch.int32).cumsum_(0), (1, 0))
@@ -104,6 +104,12 @@ def gen_one_img(
     if not isinstance(tau_list, list):
         tau_list = [tau_list] * len(scale_schedule)
     text_cond_tuple = encode_prompt(text_tokenizer, text_encoder, prompt, enable_positive_prompt)
+    text_cond_tuple = (
+        text_cond_tuple[0].to(device=infinity_test.device),
+        text_cond_tuple[1],
+        text_cond_tuple[2].to(device=infinity_test.device),
+        text_cond_tuple[3]
+    )
     if negative_prompt:
         negative_label_B_or_BLT = encode_prompt(text_tokenizer, text_encoder, negative_prompt)
     else:
@@ -200,6 +206,7 @@ def load_infinity(
         if bf16:
             for block in infinity_test.unregistered_blocks:
                 block.bfloat16()
+            infinity_test = infinity_test.to(dtype=torch.bfloat16)
 
         infinity_test = infinity_test.to(device=device)
         infinity_test.eval()
@@ -274,6 +281,7 @@ def load_visual_tokenizer(device, args):
             decoder_ch_mult=[1, 2, 4, 4, 4]
         vae = vae_model(args.vae_path, schedule_mode, codebook_dim, codebook_size, patch_size=patch_size, 
                         encoder_ch_mult=encoder_ch_mult, decoder_ch_mult=decoder_ch_mult, test_mode=True).to(device)
+        vae.device = device
     else:
         raise ValueError(f'vae_type={args.vae_type} not supported')
     return vae

@@ -32,7 +32,7 @@ class InfinityTextEncoder:
 
     def load(self, text_encoder, device):
         if device == "default":
-            device = mm.get_torch_device()
+            device = str(mm.get_torch_device())
         text_encoder_ckpt = osp.join(INFINITY_TEXT_ENCODERS_DIR, text_encoder)
         text_tokenizer, text_encoder = run_infinity.load_tokenizer(
             device,
@@ -47,6 +47,7 @@ class InfinityVAE:
             "required": {
                 "vae_type": ([14, 16, 18, 20, 24, 32, 64], {"default": 32}),
                 "vae": (folder_paths.get_filename_list("infinity_vae"),),
+                "device": (["default", "cpu"],),
                 "apply_spatial_patchify": ([False, True],),
             }
         }
@@ -54,14 +55,16 @@ class InfinityVAE:
     RETURN_TYPES = ("INFINITY_VAE",)
     FUNCTION = "load"
 
-    def load(self, vae_type, vae, apply_spatial_patchify):
+    def load(self, vae_type, vae, device, apply_spatial_patchify):
+        if device == "default":
+            device = str(mm.get_torch_device())
         class Args:
             pass
         args = Args()
         args.vae_type = vae_type
         args.vae_path = osp.join(INFINITY_VAES_DIR, vae)
         args.apply_spatial_patchify = apply_spatial_patchify
-        vae = run_infinity.load_visual_tokenizer(mm.get_torch_device(), args)
+        vae = run_infinity.load_visual_tokenizer(device, args)
         return ((vae, args),)
 
 class InfinityModel:
@@ -145,7 +148,7 @@ class Infinity:
                 "tau": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 16.0}),
                 "cfg_insertion_layer": ("INT", {"default": 0}),
                 "sampling_per_bits": ([1, 2, 4, 8, 16],),
-                "h_div_w_template": ("FLOAT", {"default": 1.0}),
+                "h_div_w_template": (tuple(dynamic_resolution_h_w.keys()),),
                 "enable_positive_prompt": ([False, True],),
             }
         }

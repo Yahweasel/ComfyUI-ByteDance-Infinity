@@ -533,11 +533,12 @@ class AdaLNBeforeHead(nn.Module):
         self.ada_lin = nn.Sequential(nn.SiLU(inplace=False), lin) if act else nn.Sequential(lin)
     
     def forward(self, x_BLC: torch.Tensor, cond_BD: Optional[torch.Tensor]):
-        scale, shift = self.ada_lin(cond_BD).view(-1, 1, 2, self.C).unbind(2)
-        if self.fused_norm_func is None:
-            return self.ln_wo_grad(x_BLC).mul(scale.add(1)).add_(shift)
-        else:
-            return self.fused_norm_func(C=self.C, eps=self.norm_eps, x=x_BLC, scale=scale, shift=shift)
+        with torch.amp.autocast('cuda', enabled=True):
+            scale, shift = self.ada_lin(cond_BD).view(-1, 1, 2, self.C).unbind(2)
+            if self.fused_norm_func is None:
+                return self.ln_wo_grad(x_BLC).mul(scale.add(1)).add_(shift)
+            else:
+                return self.fused_norm_func(C=self.C, eps=self.norm_eps, x=x_BLC, scale=scale, shift=shift)
 
 
 def main():
