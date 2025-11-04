@@ -13,7 +13,15 @@ This repository exposes four nodes, each named with `Infinity:`. All are needed.
 
 Model and VAE types are not autodetected. When you've set the correct model/VAE name, make sure you also set the appropriate model/VAE type, and whether to patchify.
 
-So far I've only had success with the 2B model; even on my 24GB GPU, I run out of space with the 8B model. I'm working on it.
+The model loader supports loading the model in (original) float32, bfloat16, or (new) float8, to save VRAM.
+
+These models are *extremely* memory-intensive. I have a 24GB card and can only *just* run the 8B-512x512 model. I'm not sure why these models are called "Infinity", but perhaps it refers to their VRAM usage.
+
+![Infinity-2B workflow screenshot](comfy/infinity-2b.webp)
+[Infinity-2B workflow](comfy/infinity-2b.json)
+
+![Infinity-8B-512x512 workflow screenshot](comfy/infinity-8b-512x512.webp)
+[Infinity-8B-512x512 workflow](comfy/infinity-8b-512x512.json)
 
 The original README is below.
 
