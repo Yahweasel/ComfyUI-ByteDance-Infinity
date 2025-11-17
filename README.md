@@ -15,13 +15,16 @@ Model and VAE types are not autodetected. When you've set the correct model/VAE 
 
 The model loader supports loading the model in (original) float32, bfloat16, or (new) float8, to save VRAM.
 
-These models are *extremely* memory-intensive. I have a 24GB card and can only *just* run the 8B-512x512 model. I'm not sure why these models are called "Infinity", but perhaps it refers to their VRAM usage.
+These models are *extremely* memory-intensive. I have a 24GB card and can only *just* run the 8B-512x512 model. On a Strix Halo with 96GB I can run the full 8B model, but not very quickly. I'm not sure why these models are called "Infinity", but perhaps it refers to their VRAM usage.
 
 ![Infinity-2B workflow screenshot](comfy/infinity-2b.webp)
 [Infinity-2B workflow](comfy/infinity-2b.json)
 
 ![Infinity-8B-512x512 workflow screenshot](comfy/infinity-8b-512x512.webp)
 [Infinity-8B-512x512 workflow](comfy/infinity-8b-512x512.json)
+
+![Infinity-8B workflow screenshot](comfy/infinity-8b.webp)
+[Infinity-8B workflow](comfy/infinity-8b.json)
 
 The original README is below.
 
